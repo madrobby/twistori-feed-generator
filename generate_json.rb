@@ -11,7 +11,7 @@ TERMS.each do |item|
 
   db = SQLite3::Database.new("db.sqlite")
   query = "SELECT text FROM POST WHERE TEXT LIKE \"#{search}\" AND length(TEXT)<=160 ORDER BY indexedAt DESC LIMIT 200"
-  puts query
+  # puts query
   hits = db.execute(query)
 
   hits = hits.reject do |hit|
@@ -22,6 +22,8 @@ TERMS.each do |item|
     # this prevents duplicates between streams
     (TERMS-[item]).any? { |word| text.include? "i #{word}" }
   end
+
+  puts "#{hits.count} hits for #{term}"
 
   json = "data/#{term.gsub(' ','_')}.json"
   File.open(json,'w'){|f| f.write hits.map{|t|t[0].gsub(/\s+/,' ').strip}.to_json }

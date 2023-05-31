@@ -7,21 +7,28 @@ import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   public postCount = 0
   public lastSkeet = Date.now()
+  public timestamps: number[] = []
+  public counts: number[] = []
 
   async handleEvent(evt: RepoEvent) {
     if (!isCommit(evt)) return
+
     const ops = await getOpsByType(evt)
     const STOPWORDS = /\b(musk|elon|muskrat|#[a-z0-9]+|bluesky|twistori|jay|paul|@[a-z0-9]|bsky)\b/gi
-    // This logs the text of every post off the firehose.
-    // Just for fun :)
-    // Delete before actually using
-    for (const post of ops.posts.creates) {
-//      console.log("--> "+JSON.stringify(post.record))
-      // console.log(post.record.text)
-    }
+    const PROGRESS = ['|','/','-','\\']
 
     const now = Date.now()
-    const sps = (1000.0/(now - this.lastSkeet)) * ops.posts.creates.length
+    const depth = 50
+
+    this.timestamps.push(now - this.lastSkeet)
+    this.timestamps = this.timestamps.slice(-depth)
+    this.counts.push(ops.posts.creates.length)
+    this.counts = this.counts.slice(-depth)
+
+    const avgTime = this.timestamps.reduce((a, b) => a + b, 0) / this.timestamps.length
+    const avgSkeets = this.counts.reduce((a, b) => a + b, 0) / this.counts.length
+
+    const sps = (1000.0 / avgTime) * avgSkeets
     this.lastSkeet = now
 
     const postsToDelete = ops.posts.deletes.map((del) => del.uri)
@@ -30,9 +37,6 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         const ltext = create.record.text.toLowerCase()
 
         const match =
-          // todo: filter stopwords
-          // todo: filter hashtags (usually sports or nsfw)
-          // todo: filter longer entries?
           create.record.facets === undefined &&
           create.record.reply === undefined &&
           (!ltext.match(STOPWORDS)) &&
@@ -45,12 +49,8 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
             ltext.match(/\bi\swish\b/)
           )
 
-          // todo: for generating feed files
-          // take last 50 of every category and randomize
-          // update once an hour maybe?
-        // print console.log('\033[2J');
-        this.postCount = this.postCount + 1
-        process.stdout.write("\u001b[2K\u001b[0E --> post "+this.postCount+" "+sps+" skeets/s")
+        this.postCount = this.postCount + ops.posts.creates.length
+        process.stdout.write("\r\u001b[2K"+PROGRESS[this.postCount % 4]+' ['+this.postCount+'] '+(Math.round(sps * 100) / 100).toFixed(2)+" skeets/s")
 
         if (match) {
           process.stdout.write('\n')
@@ -59,7 +59,6 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         return match
       })
       .map((create) => {
-        // map alf-related posts to a db row
         return {
           uri: create.uri,
           cid: create.cid,
