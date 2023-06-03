@@ -18,7 +18,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     const PROGRESS = ['|','/','-','\\']
 
     const now = Date.now()
-    const depth = 50
+    const depth = 500
 
     this.timestamps.push(now - this.lastSkeet)
     this.timestamps = this.timestamps.slice(-depth)
